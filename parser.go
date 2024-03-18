@@ -1,71 +1,101 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"os"
+	"strings"
 )
 
-type Model string
+type Model int
 
 const (
-	NoModel     = "NoModel"
-	HelpModel   = "HelpModel"
-	NormalModel = "NormalModel"
-	EditModel   = "EditModel"
-	RemoveModel = "RemoveModel"
+	ModelHelp Model = iota
+	ModelInit
+	ModelIndex
+	ModelEdit
+	ModelRemove
+	ModelShow
 )
 
 type Parser struct {
-	model      Model
-	parameters []string
+	Model   Model
+	Keyword string
+	Path    string
+	Confirm bool
+	Args    []string
 }
 
-func parser() (p Parser, err error) {
+type input struct {
+	helpModel   bool
+	initModel   bool
+	indexModel  bool
+	editModel   bool
+	removeModel bool
+	confirm     bool
+	args        []string
+}
 
-	p.model = NormalModel
-	// 直接运行命令没有参数 直接返回help
-	if len(os.Args) == 1 {
-		fmt.Println("help model")
-		p.model = HelpModel
+func parser(i input) (p Parser, err error) {
+
+	// 定义命令行参数
+
+	// 如果没有flag并且arg为0则为帮助模式 例如直接运行命令
+	// 如果arg大于指定深度则为帮助模式 例如 tellme aws ec2 runinstance
+	if flag.NArg() > Deep || (flag.NFlag() == 0 && flag.NArg() == 0) {
+		err = fmt.Errorf("没有flag和参数,或参数个数大于%d", Deep)
+		fmt.Println(err)
+		p.Model = ModelHelp
 		return
 	}
 
-	for _, arg := range os.Args[1:] {
-		switch arg {
-		case "--help", "-h", "help": // 如果是help模式直接返回
-			p.model = HelpModel
-			return
-		case "--edit", "-e":
-			err = setModel(&p, EditModel)
-		case "--remove", "-r":
-			err = setModel(&p, RemoveModel)
-		default:
-			p.parameters = append(p.parameters, arg)
-		}
-		if err != nil {
-			return p, err
+	models := []bool{
+		i.helpModel,
+		i.initModel,
+		i.indexModel,
+		i.editModel,
+		i.removeModel,
+	}
+
+	n := 0
+	for _, b := range models {
+		if b {
+			n++
 		}
 	}
 
-	lenP := len(p.parameters)
-	// 参数最多为三个 例如 tellme aws ec2 runinstance
-	if lenP > Deep {
-		p.model = HelpModel
+	if n > 1 {
+		err = fmt.Errorf("指定多个Option")
+		fmt.Println(err)
+		return
 	}
+	p.Confirm = i.confirm
 
-	// 如果不是帮助模式,但是关键词为0 则显示帮助
-	if p.model != HelpModel && lenP == 0 {
-		p.model = HelpModel
+	switch {
+	case i.helpModel:
+		p.Model = ModelHelp
+	case i.initModel:
+		p.Model = ModelInit
+	case i.indexModel:
+		p.Model = ModelIndex
+	case i.editModel:
+		p.Model = ModelEdit
+	case i.removeModel:
+		p.Model = ModelRemove
+	default:
+		p.Model = ModelShow
+	}
+	p.Args = i.args
+
+	na := len(i.args)
+
+	switch na {
+	case 1:
+		p.Path = defaultPath
+		p.Keyword = i.args[0]
+	case 2:
+		p.Path = strings.Join(i.args[:na-1], "/")
+		p.Keyword = i.args[na-1]
 	}
 
 	return
-}
-
-func setModel(p *Parser, model Model) error {
-	if p.model == NormalModel {
-		p.model = model
-		return nil
-	} else {
-		return fmt.Errorf("不能同时指定多个模式: %s,%s", p.model, model)
-	}
 }

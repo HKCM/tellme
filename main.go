@@ -1,18 +1,42 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"log"
 	"os/user"
-	"strings"
 )
 
 const (
 	editor = "vim"
+	delim  = "---\n"
 )
 
-var home string
+var (
+	home         string // u.HomeDir + /.tellme
+	realTemplate string
+	IndexFile    string
+	i            input
+)
+
+var (
+	helpModel    bool
+	initModel    bool
+	indexModel   bool
+	editModel    bool
+	removeModel  bool
+	confirmModel bool
+)
 
 const Deep = 3
+
+const (
+	defaultPath   = "shell" // 默认的查询路径
+	root          = "/.tellme"
+	shortHome     = "~" + root
+	shortIndex    = shortHome + "/index.json"
+	shortTemplate = shortHome + "/template.md"
+)
 
 func init() {
 	u, err := user.Current()
@@ -20,41 +44,54 @@ func init() {
 		log.Fatal(err)
 	}
 
-	home = u.HomeDir + "/.tellme"
+	home = u.HomeDir + root
+	realTemplate = home + "/template.md"
+	IndexFile = home + "/index.json"
+
+	flag.BoolVar(&helpModel, "help", false, "显示帮助")
+	flag.BoolVar(&initModel, "init", false, "创建模版")
+	flag.BoolVar(&indexModel, "index", false, "创建模版")
+	flag.BoolVar(&editModel, "edit", false, "编辑或新建笔记")
+	flag.BoolVar(&removeModel, "remove", false, "移除笔记")
+	flag.BoolVar(&confirmModel, "y", false, "确认操作")
+	flag.Parse()
+
+	i = input{
+		helpModel:   helpModel,
+		initModel:   initModel,
+		indexModel:  indexModel,
+		editModel:   editModel,
+		removeModel: removeModel,
+		confirm:     confirmModel,
+		args:        flag.Args(),
+	}
+
+	fmt.Printf("%+v\n", i)
 }
 
 func main() {
 
-	p, err := parser()
+	p, err := parser(i)
 	if err != nil {
-		panic(err)
+		fmt.Printf("parser 有错误, 设置为help模式%v", err)
+		p.Model = ModelHelp
 	}
 
-	// 组装路径
-	var path, keyword string
-	if len(p.parameters) != 0 {
-		path = strings.Join(p.parameters[:len(p.parameters)-1], "/")
-		keyword = p.parameters[len(p.parameters)-1]
-	}
+	var runCmd func(p Parser)
 
-	cmd, err := selectCmd(p.model)
-	if err != nil {
-		panic(err)
-	}
-
-	var runCmd func(path, keyword string)
-
-	switch cmd {
-	case HelpCmd:
+	switch p.Model {
+	case ModelInit:
+		runCmd = cmdInit
+	case ModelIndex:
+		runCmd = cmdIndexUpdate
+	case ModelHelp:
 		runCmd = cmdShowHelp
-	case EditCmd:
+	case ModelEdit:
 		runCmd = cmdEditNote
-	case ShowCmd:
-		runCmd = cmdShow
-	case RmCmd:
+	case ModelRemove:
 		runCmd = cmdRemoveNote
+	default:
+		runCmd = cmdShow
 	}
-
-	runCmd(path, keyword)
-
+	runCmd(p)
 }

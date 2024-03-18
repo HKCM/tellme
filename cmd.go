@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,184 +9,204 @@ import (
 )
 
 type CommandType int
+type ShowType int
 
 const (
-	NoCmd = iota
+	InitCmd CommandType = iota
 	HelpCmd
 	EditCmd
 	ShowCmd
 	RmCmd
 )
+const (
+	ShowNote ShowType = iota
+	ShowIndex
+	ShowFiles
+	ShowNothing
+)
 
-func selectCmd(model Model) (CommandType, error) {
+func cmdShow(p Parser) {
 
-	switch model {
-	case HelpModel:
-		return HelpCmd, nil
-	case RemoveModel:
-		return RmCmd, nil
-	case EditModel:
-		return EditCmd, nil
-	case NormalModel:
-		return ShowCmd, nil
-	default:
-		fmt.Println("Model is:", model)
-		return NoCmd, errors.New("UnknownModel")
-	}
-
-}
-
-func checkPath(path, keyword string) (stat int, filePath, dirPath string) {
-	// 首先尝试寻找特定文件
-	filePath = home + "/" + path + "/" + keyword + ".md"
-
-	stat, err := getPathStat(filePath)
-	if err != nil {
-		panic(err)
-	}
-
-	if stat == IsAFile {
-		return IsAFile, filePath, path
-	}
-
-	// 如果没找到特定文件,则查找目
-	if path == "" {
-		dirPath = home + "/" + keyword
-	} else {
-		dirPath = home + "/" + path + "/" + keyword
-	}
-
-	stat, err = getPathStat(dirPath)
-	if err != nil {
-		panic(err)
-	}
-	return stat, filePath, dirPath
-
-}
-
-func cmdShow(path, keyword string) {
-	stat, filePath, dirPath := checkPath(path, keyword)
+	stat, filePath := buildPath(p.Path, p.Keyword)
 
 	switch stat {
 	case IsAFile:
+		fmt.Println("显示note")
 		cmdShowNote(filePath)
 	case IsADir:
-		cmdShowList(dirPath)
-	default:
-		fmt.Printf("没有发现 %s 文件或 %s 目录\n", filePath, dirPath)
+		fmt.Println("显示目录")
+		cmdShowFiles(filePath)
+	case IsNoFile:
+		fmt.Println("显示index")
+		cmdShowIndex(p.Path + "/" + p.Keyword)
+	}
+
+}
+
+func cmdShowIndex(keyword string) {
+	find, keywordPaths := checkIndex(keyword) // 如果没有相关文件和目录 则进行关键词检索
+
+	if find {
+		if len(keywordPaths) == 1 { // 如果对应关键词下只有一条路径,则直接显示文件内容
+			realPath := home + "/" + keywordPaths[0]
+			cmdShowNote(realPath)
+			return
+		}
+		fmt.Printf("发现 %s 关键字,属于以下目录:\n", keyword)
+		columnPrint(keywordPaths, nil)
+		return
 	}
 }
-func cmdShowList(path string) {
+
+func cmdShowNothing(path, keyword string) {
+	fmt.Printf("未发现 %s 目录...\n", getRelativePath(path))
+	fmt.Printf("搜索完毕,未发现任何 %s 相关记录...\n", keyword)
+}
+
+func getRelativePath(absPath string) string {
+	return strings.Replace(absPath, home, shortHome, 1)
+}
+
+func cmdShowFiles(path string) error {
 	files, err := filepath.Glob(path + "/*")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	if len(files) > 0 {
-		fmt.Println("目录下存在以下文件:")
-		for _, f := range files {
-			fmt.Println(f)
-		}
-
-		part := path[len(home):]
+		part := path[len(home)+1:] // 加1去除末尾的 “/”
 		s := strings.ReplaceAll(part, "/", " ")
-		fmt.Printf("请使用以下命令: tellme %s <Name>", s)
+		fmt.Printf("%s 目录下存在以下文件(%d):\n", path, len(files))
+
+		columnPrint(files, filepath.Base)
+
+		fmt.Printf("\n请使用类似命令获取详情: tellme %s %s\n", s, filepath.Base(files[0][:len(files[0])-3]))
 	} else {
 		fmt.Printf("目录 %s 下为空\n", path)
 	}
+
+	return nil
 }
 
-func cmdShowNote(path string) {
+func cmdShowNote(path string) error {
 
 	markdown, err := os.ReadFile(path)
 	if err != nil {
-		fmt.Printf("failed to read file: %s, %v", path, err)
-		return
+		return fmt.Errorf("failed to read file: %s, %v", path, err)
 	}
 
-	text, err := mdParse(string(markdown))
+	text, err := markdownParse(string(markdown), 3)
 	if err != nil {
-		fmt.Printf("failed to parse markdown: %s, %v", path, err)
+		return fmt.Errorf("failed to parse markdown: %s, %v", path, err)
 	}
-	fmt.Println(text)
+	for _, t := range strings.Split(text, "\n") {
+		if strings.HasPrefix(t, "```") {
+			continue
+		}
+		if strings.HasPrefix(t, "#") || strings.HasPrefix(t, "//") {
+			colorPrint(GREEN, t)
+		} else {
+			colorPrint(YELLOW, t)
+		}
+	}
+	return nil
 }
 
-func mdParse(markdown string) (string, error) {
-	delim := "---\n"
-
-	// if the markdown does not contain frontmatter, pass it through unmodified
-	if !strings.HasPrefix(markdown, delim) {
-		return markdown, nil
-	}
-
-	// otherwise, split the frontmatter and cheatsheet text
-	parts := strings.Split(markdown, delim)
-
-	if len(parts) < 4 {
-		return markdown, fmt.Errorf("failed to delimit")
-	}
-
-	//fmt.Println(parts)
-
-	return parts[3], nil
-}
-
-func cmdEditNote(path, keyword string) {
-
-	if path == "" {
-		fmt.Println("当使用编辑模式时,至少包含两个层级: tellme -e vim open")
-		return
-	}
-
-	stat, filePath, dirPath := checkPath(path, keyword)
+func cmdEditNote(p Parser) {
 	var cmd *exec.Cmd
-	switch stat {
-	case IsAFile:
+	// 构建文件路径
+	filePath := home + "/" + p.Path + "/" + p.Keyword + ".md"
+	var originTags []string
+	var err error
+
+	// 如果文件已存在直接编辑
+	if IsFile(filePath) {
+		fmt.Printf("文件 %s 已存在\n", filePath)
+		originTags, err = getFileTags(filePath)
+		if err != nil {
+			panic(fmt.Errorf("删除文件 %s 失败,%v", filePath, err))
+		}
 		cmd = exec.Command(editor, filePath)
-	case IsADir:
-		fmt.Printf("已存在同名目录: %s\n", dirPath)
-		fmt.Printf("Note创建失败: %s\n", filePath)
-		return
-	case IsNoFile:
-		e, err := pathExists(filepath.Dir(filePath))
+	} else {
+		dirPath := filepath.Dir(filePath)
+		e, err := pathExists(dirPath)
 		if err != nil {
 			panic(err)
 		}
 		// 如果目录不存在则创建
 		if !e {
-			os.MkdirAll(dirPath, 0777)
+			fmt.Println("目录:", dirPath, "不存在,创建中...")
+			err = os.MkdirAll(dirPath, 0777)
+			if err != nil {
+				panic(err)
+			}
 		}
-		lineCmd := fmt.Sprintf("normal! i---\ntag: [\"%s\",\"example\"]\n---\n# <Title>\n---\n## Example", keyword)
-		//fmt.Println(lineCmd)
+		var lineCmd string
+		if IsFile(realTemplate) {
+			fmt.Println("模版文件已存在,使用模版...")
+			lineCmd = fmt.Sprintf("autocmd VimEnter * nested silent! 0r %s", realTemplate) // 使用template内容
+		} else {
+			fmt.Println("模版文件不存在,使用命令行参数添加模版...")
+			lineCmd = "normal! i---\ntags: [\"example\"]\n---\n# <Title>\n---\n## Example"
+		}
+		fmt.Println(lineCmd)
 		cmd = exec.Command(editor, "-c", lineCmd, filePath)
-	default:
-		fmt.Println("出现未知类型...")
 	}
 
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to edit %s: %v\n", filePath, err)
-		os.Exit(1)
+		panic(fmt.Errorf("failed to edit %s: %v", filePath, err))
 	}
+
+	// 如果文件不存在,则表示文件没有创建,不用更新索引
+	if !IsFile(filePath) {
+		fmt.Println("如果文件不存在,则表示文件没有创建,不用更新索引")
+		return
+	}
+
+	newTags, err := getFileTags(filePath)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("newTags:%v oldTags:%v \n", newTags, originTags)
+	if equal(newTags, originTags) {
+		fmt.Println("新旧文件Tag相同,不用更新索引")
+		return
+	}
+
 	//TODO 更新索引
+
+	data := updateIndex(filePath, newTags, originTags)
+	writeIndex(data)
 
 }
 
 // 删除必须要指定note的名字
-func cmdRemoveNote(path, keyword string) {
+func cmdRemoveNote(p Parser) {
 
-	stat, filePath, dirPath := checkPath(path, keyword)
+	indexUpdate := false
+	stat, filePath := buildPath(p.Path, p.Keyword)
+	var tags []string
+	var err error
 
 	switch stat {
 	case IsAFile:
-		if confirm(fmt.Sprintf("即将删除 %s 文件操作？(yes/no): ", filePath)) {
-			os.Remove(filePath)
+		if p.Confirm || confirmInput(deleteFileMsg(p, filePath)) {
+			tags, err = getFileTags(filePath)
+			if err != nil {
+				panic(fmt.Errorf("获取文件Tag %s 失败,%v", filePath, err))
+			}
+			err = os.Remove(filePath)
+			if err != nil {
+				panic(fmt.Errorf("删除文件 %s 失败,%v", filePath, err))
+			}
 		}
-		//TODO 更新索引
-		return
-	case IsADir:
-		files, err := filepath.Glob(dirPath + "/*")
+		indexUpdate = true
+
+	case IsADir: // TODO 目前删除目录有问题
+		files, err := filepath.Glob(filePath + "/*")
 		if err != nil {
 			panic(err)
 		}
@@ -197,43 +216,50 @@ func cmdRemoveNote(path, keyword string) {
 				fmt.Println(f)
 			}
 		}
-		if confirm(fmt.Sprintf("即将删除 %s 目录操作？(yes/no): ", dirPath)) {
-			err = os.RemoveAll(dirPath)
+		if confirmInput(fmt.Sprintf("即将删除 %s 目录操作", filePath)) {
+			err = os.RemoveAll(filePath)
 			if err != nil {
 				panic(err)
 			}
 		}
+		indexUpdate = true
 	case IsNoFile:
-		fmt.Printf("没有发现 %s 文件或 %s 目录", filePath, dirPath)
+		fmt.Printf("没有发现相关文件或目录")
+	default:
+		panic(fmt.Errorf("未知状态"))
 	}
+
+	if indexUpdate {
+		//TODO 更新索引
+		data := updateIndex(filePath, []string{}, tags)
+		writeIndex(data)
+	}
+
 }
 
-func cmdShowHelp(path, keyword string) {
-	usage()
+// 创建template文件
+func cmdInit(p Parser) {
+	// 如果文件已存在
+	// if IsFile(realTemplate) && !confirm(fmt.Sprintf("%s 文件已存在,即将覆盖", realTemplate)) {
+
+	// 	fmt.Println("没有覆盖文件:", realTemplate)
+	// 	return nil
+	// }
+	if !IsFile(realTemplate) || p.Confirm || confirmInput(fmt.Sprintf("模版文件 %s 已存在, 确认使用初始化覆盖?", realTemplate)) {
+		err := os.WriteFile(realTemplate, getTemplate(), 0666) //写入文件(字节数组)
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
+
 }
 
-func confirm(prompt string) bool {
-	// 提示用户进行确认操作
-	fmt.Print(prompt)
+func cmdShowHelp(p Parser) {
+	fmt.Println(usage())
+	os.Exit(1)
+}
 
-	// 读取用户输入
-	var input string
-	fmt.Scanln(&input)
-
-	// 将输入转换为小写并去除首尾空格
-	input = strings.TrimSpace(strings.ToLower(input))
-
-	// 根据用户输入执行相应操作
-	if input == "yes" {
-		fmt.Println("操作已确认")
-		return true
-		// 在这里执行需要确认的操作
-	} else if input == "no" {
-		fmt.Println("操作已取消")
-		return false
-		// 在这里执行取消操作
-	} else {
-		fmt.Println("无效的输入")
-		return false
-	}
+func cmdIndexUpdate(p Parser) {
+	fmt.Println("更新所以")
 }
