@@ -38,13 +38,14 @@ func cmdShow(p Parser) {
 		cmdShowFiles(filePath)
 	case IsNoFile:
 		fmt.Println("显示index")
-		cmdShowIndex(p.Path + "/" + p.Keyword)
+		cmdShowIndex(p.Path, p.Keyword)
 	}
 
 }
 
-func cmdShowIndex(keyword string) {
-	find, keywordPaths := checkIndex(keyword) // 如果没有相关文件和目录 则进行关键词检索
+func cmdShowIndex(path, keyword string) {
+	indexKeyword := path + "/" + keyword
+	find, keywordPaths := checkIndex(indexKeyword) // 如果没有相关文件和目录 则进行关键词检索
 
 	if find {
 		if len(keywordPaths) == 1 { // 如果对应关键词下只有一条路径,则直接显示文件内容
@@ -52,10 +53,13 @@ func cmdShowIndex(keyword string) {
 			cmdShowNote(realPath)
 			return
 		}
-		fmt.Printf("发现 %s 关键字,属于以下目录:\n", keyword)
+		fmt.Printf("发现 %s 关键字,属于以下目录:\n", indexKeyword)
 		columnPrint(keywordPaths, nil)
 		return
 	}
+
+	cmdShowNothing(path, keyword)
+
 }
 
 func cmdShowNothing(path, keyword string) {
