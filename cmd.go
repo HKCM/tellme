@@ -31,8 +31,8 @@ func cmdShow(p Parser) {
 
 	switch stat {
 	case IsAFile:
-		fmt.Println("显示note")
 		cmdShowNote(filePath)
+		fmt.Println("for more detail:", filePath)
 	case IsADir:
 		fmt.Println("显示目录")
 		cmdShowFiles(filePath)
@@ -177,9 +177,9 @@ func cmdEditNote(p Parser) {
 	}
 
 	//TODO 更新索引
-
-	data := updateIndex(filePath, newTags, originTags)
-	writeIndex(data)
+	index := readIndex()
+	index = updateIndex(filePath, index, newTags, originTags)
+	writeIndex(index)
 
 }
 
@@ -217,6 +217,7 @@ func cmdRemoveNote(p Parser) {
 			}
 		}
 		if confirmInput(fmt.Sprintf("即将删除 %s 目录操作", filePath)) {
+			updateIndexByRemoveDir(filePath)
 			err = os.RemoveAll(filePath)
 			if err != nil {
 				panic(err)
@@ -231,7 +232,8 @@ func cmdRemoveNote(p Parser) {
 
 	if indexUpdate {
 		//TODO 更新索引
-		data := updateIndex(filePath, []string{}, tags)
+		index := readIndex()
+		data := updateIndex(filePath, index, []string{}, tags)
 		writeIndex(data)
 	}
 
@@ -239,12 +241,6 @@ func cmdRemoveNote(p Parser) {
 
 // 创建template文件
 func cmdInit(p Parser) {
-	// 如果文件已存在
-	// if IsFile(realTemplate) && !confirm(fmt.Sprintf("%s 文件已存在,即将覆盖", realTemplate)) {
-
-	// 	fmt.Println("没有覆盖文件:", realTemplate)
-	// 	return nil
-	// }
 	if !IsFile(realTemplate) || p.Confirm || confirmInput(fmt.Sprintf("模版文件 %s 已存在, 确认使用初始化覆盖?", realTemplate)) {
 		err := os.WriteFile(realTemplate, getTemplate(), 0666) //写入文件(字节数组)
 		if err != nil {
@@ -261,5 +257,6 @@ func cmdShowHelp(p Parser) {
 }
 
 func cmdIndexUpdate(p Parser) {
-	fmt.Println("更新所以")
+	updateAllIndex()
+
 }

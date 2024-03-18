@@ -1,1 +1,1 @@
-{"getip":["shell/checkip.md"],"shell":["getip"],"shell/getip":["shell/checkip.md"]}
+{"decode":["shell/base64.md"],"getip":["shell/checkip.md"],"shell":["decode","getip","别名"],"shell/decode":["shell/base64.md"],"shell/getip":["shell/checkip.md"],"shell/别名":["shell/alias.md"],"别名":["shell/alias.md"]}

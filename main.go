@@ -35,7 +35,7 @@ const (
 	root          = "/.tellme"
 	shortHome     = "~" + root
 	shortIndex    = shortHome + "/index.json"
-	shortTemplate = shortHome + "/template.md"
+	shortTemplate = shortHome + "/template"
 )
 
 func init() {
@@ -45,14 +45,14 @@ func init() {
 	}
 
 	home = u.HomeDir + root
-	realTemplate = home + "/template.md"
+	realTemplate = home + "/template"
 	IndexFile = home + "/index.json"
 
 	flag.BoolVar(&helpModel, "help", false, "显示帮助")
 	flag.BoolVar(&initModel, "init", false, "创建模版")
-	flag.BoolVar(&indexModel, "index", false, "创建模版")
-	flag.BoolVar(&editModel, "edit", false, "编辑或新建笔记")
-	flag.BoolVar(&removeModel, "remove", false, "移除笔记")
+	flag.BoolVar(&indexModel, "make-index", false, "更新索引")
+	flag.BoolVar(&editModel, "e", false, "编辑或新建笔记")
+	flag.BoolVar(&removeModel, "r", false, "移除笔记")
 	flag.BoolVar(&confirmModel, "y", false, "确认操作")
 	flag.Parse()
 

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -33,16 +32,14 @@ func checkIndex(keyword string) (find bool, dirPaths []string) {
 	return
 }
 
-func updateIndex(filePath string, newTags, oldTags []string) (data map[string][]string) {
+func updateIndex(filePath string, index map[string][]string, newTags, oldTags []string) (newIndex map[string][]string) {
 
 	partFilePath, _ := strings.CutPrefix(filePath, home+"/")
 
-	data = readIndex()
+	index = deleteIndex(index, oldTags, partFilePath)
+	index = addIndex(index, newTags, partFilePath)
 
-	data = deleteIndex(data, oldTags, partFilePath)
-	data = addIndex(data, newTags, partFilePath)
-
-	return data
+	return index
 }
 
 func readIndex() (data map[string][]string) {
@@ -100,16 +97,48 @@ func writeIndex(data map[string][]string) {
 	writer.Flush()
 }
 
-func updateAllIndex() error {
+func updateAllIndex() (err error) {
 	// 获取新的文件内容
-	return filepath.WalkDir(IndexFile, func(path string, d fs.DirEntry, err error) error {
-		if d.IsDir() {
-			fmt.Printf("%s 是一个目录\n", path)
-		} else {
-			fmt.Printf("%s 是一个文件\n", path)
+	var files []string
+	index := make(map[string][]string)
+	err = filepath.Walk(home+"/", func(path string, info os.FileInfo, err error) error {
+		if !info.IsDir() && filepath.Ext(path) == ".md" {
+			files = append(files, path)
+			tags, err := getFileTags(path)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			index = updateIndex(path, index, tags, []string{})
+
 		}
 		return err
 	})
+
+	writeIndex(index)
+	return
+}
+
+func updateIndexByRemoveDir(dirPath string) (err error) {
+
+	index := readIndex()
+	if index == nil {
+		index = make(map[string][]string)
+	}
+
+	err = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if !info.IsDir() && filepath.Ext(path) == ".md" {
+			oldTags, err := getFileTags(path)
+			if err != nil {
+				fmt.Println(err)
+			}
+			index = updateIndex(path, index, []string{}, oldTags)
+		}
+		return err
+	})
+
+	writeIndex(index)
+	return
 }
 
 func addIndex(index map[string][]string, tags []string, path string) map[string][]string {
