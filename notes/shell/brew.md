@@ -17,7 +17,7 @@ tags: []
 brew install packageName   
 brew install mysql           # 示例:安装mysql
 brew install mysql@5.7       # 示例:安装mysql指定版本
-
+brew upgrade mysql           # 示例:升级
 brew services run mysql      # 启动mysql,仅启动
 brew services start mysql    # 启动mysql,并设置为开机启动
 brew services stop mysql     # 停止mysql,并注销开机启动

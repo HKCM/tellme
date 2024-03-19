@@ -64,7 +64,7 @@ func parser(i input) (p Parser, err error) {
 	}
 
 	if n > 1 {
-		err = fmt.Errorf("指定多个Option")
+		err = fmt.Errorf("指定多个Flag", "flag", n)
 		fmt.Println(err)
 		return
 	}
@@ -90,7 +90,7 @@ func parser(i input) (p Parser, err error) {
 
 	switch na {
 	case 1:
-		p.Path = defaultPath
+		p.Path = DefaultPath
 		p.Keyword = i.args[0]
 	case 2:
 		p.Path = strings.Join(i.args[:na-1], "/")

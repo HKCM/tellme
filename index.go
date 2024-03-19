@@ -34,7 +34,7 @@ func checkIndex(keyword string) (find bool, dirPaths []string) {
 
 func updateIndex(filePath string, index map[string][]string, newTags, oldTags []string) (newIndex map[string][]string) {
 
-	partFilePath, _ := strings.CutPrefix(filePath, home+"/")
+	partFilePath, _ := strings.CutPrefix(filePath, Home+"/")
 
 	index = deleteIndex(index, oldTags, partFilePath)
 	index = addIndex(index, newTags, partFilePath)
@@ -101,7 +101,7 @@ func updateAllIndex() (err error) {
 	// 获取新的文件内容
 	var files []string
 	index := make(map[string][]string)
-	err = filepath.Walk(home+"/", func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(Home+"/", func(path string, info os.FileInfo, err error) error {
 		if !info.IsDir() && filepath.Ext(path) == ".md" {
 			files = append(files, path)
 			tags, err := getFileTags(path)

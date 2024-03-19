@@ -3,26 +3,28 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
 	"os/user"
 )
 
 const (
-	editor = "vim"
-	delim  = "---\n"
+	EDITOR = "vim"
+	DELIM  = "---\n"
 )
 
 var (
-	home         string // u.HomeDir + /.tellme
-	realTemplate string
-	IndexFile    string
-	i            input
+	Home      string // u.HomeDir + /.tellme
+	Template  string
+	IndexFile string
+	i         input
 )
 
 var (
 	helpModel    bool
 	initModel    bool
 	indexModel   bool
+	debugModel   bool
 	editModel    bool
 	removeModel  bool
 	confirmModel bool
@@ -31,30 +33,39 @@ var (
 const Deep = 3
 
 const (
-	defaultPath   = "shell" // 默认的查询路径
-	root          = "/.tellme"
-	shortHome     = "~" + root
-	shortIndex    = shortHome + "/index.json"
-	shortTemplate = shortHome + "/template"
+	DefaultPath   = "shell" // 默认的查询路径
+	Root          = "/.tellme"
+	ShortHome     = "~" + Root
+	ShortIndex    = ShortHome + "/index.json"
+	ShortTemplate = ShortHome + "/template"
 )
 
 func init() {
+
 	u, err := user.Current()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("获取用户失败", err)
+		os.Exit(1)
 	}
+	Home = u.HomeDir + Root
+	if !IsDir(Home) {
+		slog.Error(fmt.Sprintf("项目 %s 目录不存在,请参考README.md", Home))
+		os.Exit(1)
+	}
+	Template = Home + "/template"
+	IndexFile = Home + "/index.json"
 
-	home = u.HomeDir + root
-	realTemplate = home + "/template"
-	IndexFile = home + "/index.json"
-
-	flag.BoolVar(&helpModel, "help", false, "显示帮助")
+	flag.BoolVar(&helpModel, "h", false, "显示帮助")
 	flag.BoolVar(&initModel, "init", false, "创建模版")
 	flag.BoolVar(&indexModel, "make-index", false, "更新索引")
+	flag.BoolVar(&debugModel, "debug", false, "排错模式")
 	flag.BoolVar(&editModel, "e", false, "编辑或新建笔记")
 	flag.BoolVar(&removeModel, "r", false, "移除笔记")
 	flag.BoolVar(&confirmModel, "y", false, "确认操作")
 	flag.Parse()
+	if debugModel {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	}
 
 	i = input{
 		helpModel:   helpModel,
@@ -66,14 +77,14 @@ func init() {
 		args:        flag.Args(),
 	}
 
-	fmt.Printf("%+v\n", i)
+	slog.Debug("%+v\n", i)
 }
 
 func main() {
 
 	p, err := parser(i)
 	if err != nil {
-		fmt.Printf("parser 有错误, 设置为help模式%v", err)
+		slog.Debug("parser 有错误, 设置为help模式%v", err)
 		p.Model = ModelHelp
 	}
 

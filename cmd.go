@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,16 +29,16 @@ const (
 func cmdShow(p Parser) {
 
 	stat, filePath := buildPath(p.Path, p.Keyword)
-
+	slog.Debug("即将检查", filePath)
 	switch stat {
 	case IsAFile:
 		cmdShowNote(filePath)
 		fmt.Println("for more detail:", filePath)
 	case IsADir:
-		fmt.Println("显示目录")
+		slog.Debug("cmdShow 将显示目录下的文件")
 		cmdShowFiles(filePath)
 	case IsNoFile:
-		fmt.Println("显示index")
+		slog.Debug("cmdShow 将显示index文件")
 		cmdShowIndex(p.Path, p.Keyword)
 	}
 
@@ -49,15 +50,16 @@ func cmdShowIndex(path, keyword string) {
 
 	if find {
 		if len(keywordPaths) == 1 { // 如果对应关键词下只有一条路径,则直接显示文件内容
-			realPath := home + "/" + keywordPaths[0]
+			realPath := Home + "/" + keywordPaths[0]
 			cmdShowNote(realPath)
 			return
 		}
-		fmt.Printf("发现 %s 关键字,属于以下目录:\n", indexKeyword)
+		slog.Debug("发现关键字,属于以下目录:\n", "关键词", indexKeyword)
 		columnPrint(keywordPaths, nil)
 		return
 	}
 
+	slog.Debug("没有发现关键字,什么都不显示", "关键词", indexKeyword)
 	cmdShowNothing(path, keyword)
 
 }
@@ -68,7 +70,7 @@ func cmdShowNothing(path, keyword string) {
 }
 
 func getRelativePath(absPath string) string {
-	return strings.Replace(absPath, home, shortHome, 1)
+	return strings.Replace(absPath, Home, ShortHome, 1)
 }
 
 func cmdShowFiles(path string) error {
@@ -77,7 +79,7 @@ func cmdShowFiles(path string) error {
 		return err
 	}
 	if len(files) > 0 {
-		part := path[len(home)+1:] // 加1去除末尾的 “/”
+		part := path[len(Home)+1:] // 加1去除末尾的 “/”
 		s := strings.ReplaceAll(part, "/", " ")
 		fmt.Printf("%s 目录下存在以下文件(%d):\n", path, len(files))
 
@@ -91,34 +93,26 @@ func cmdShowFiles(path string) error {
 	return nil
 }
 
-func cmdShowNote(path string) error {
+func cmdShowNote(path string) {
 
 	markdown, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %s, %v", path, err)
+		panic(fmt.Errorf("failed to read file: %s, %v", path, err))
 	}
 
 	text, err := markdownParse(string(markdown), 3)
 	if err != nil {
-		return fmt.Errorf("failed to parse markdown: %s, %v", path, err)
+		slog.Info("failed to parse markdown", "path", path, "err", err)
 	}
-	for _, t := range strings.Split(text, "\n") {
-		if strings.HasPrefix(t, "```") {
-			continue
-		}
-		if strings.HasPrefix(t, "#") || strings.HasPrefix(t, "//") {
-			colorPrint(GREEN, t)
-		} else {
-			colorPrint(YELLOW, t)
-		}
-	}
-	return nil
+
+	colorfulPrint(text)
+
 }
 
 func cmdEditNote(p Parser) {
 	var cmd *exec.Cmd
 	// 构建文件路径
-	filePath := home + "/" + p.Path + "/" + p.Keyword + ".md"
+	filePath := Home + "/" + p.Path + "/" + p.Keyword + ".md"
 	var originTags []string
 	var err error
 
@@ -129,7 +123,7 @@ func cmdEditNote(p Parser) {
 		if err != nil {
 			panic(fmt.Errorf("删除文件 %s 失败,%v", filePath, err))
 		}
-		cmd = exec.Command(editor, filePath)
+		cmd = exec.Command(EDITOR, filePath)
 	} else {
 		dirPath := filepath.Dir(filePath)
 		e, err := pathExists(dirPath)
@@ -145,15 +139,15 @@ func cmdEditNote(p Parser) {
 			}
 		}
 		var lineCmd string
-		if IsFile(realTemplate) {
+		if IsFile(Template) {
 			fmt.Println("模版文件已存在,使用模版...")
-			lineCmd = fmt.Sprintf("autocmd VimEnter * nested silent! 0r %s", realTemplate) // 使用template内容
+			lineCmd = fmt.Sprintf("autocmd VimEnter * nested silent! 0r %s", Template) // 使用template内容
 		} else {
 			fmt.Println("模版文件不存在,使用命令行参数添加模版...")
 			lineCmd = "normal! i---\ntags: [\"example\"]\n---\n# <Title>\n---\n## Example"
 		}
 		fmt.Println(lineCmd)
-		cmd = exec.Command(editor, "-c", lineCmd, filePath)
+		cmd = exec.Command(EDITOR, "-c", lineCmd, filePath)
 	}
 
 	cmd.Stdout = os.Stdout
@@ -245,8 +239,8 @@ func cmdRemoveNote(p Parser) {
 
 // 创建template文件
 func cmdInit(p Parser) {
-	if !IsFile(realTemplate) || p.Confirm || confirmInput(fmt.Sprintf("模版文件 %s 已存在, 确认使用初始化覆盖?", realTemplate)) {
-		err := os.WriteFile(realTemplate, getTemplate(), 0666) //写入文件(字节数组)
+	if !IsFile(Template) || p.Confirm || confirmInput(fmt.Sprintf("模版文件 %s 已存在, 确认使用初始化覆盖?", Template)) {
+		err := os.WriteFile(Template, getTemplate(), 0666) //写入文件(字节数组)
 		if err != nil {
 			panic(err)
 		}

@@ -31,7 +31,6 @@ alias cp="cp -i"
 alias mv="mv -i"
 alias grep='grep --color=auto'
 ```
-
 ---
 
 ## 其他配置

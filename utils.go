@@ -20,6 +20,8 @@ const (
 	BLUE   = "34"
 )
 
+var COMMON = []string{"#", "//"}
+
 func pathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
@@ -52,7 +54,7 @@ func IsFile(path string) bool {
 // 可能返回文件路径,可能返回目录路径,返回空代表文件和目录都不存在
 func buildPath(path, keyword string) (stat int, filePath string) {
 
-	filePath = home + "/" + path + "/" + keyword + ".md"
+	filePath = Home + "/" + path + "/" + keyword + ".md"
 	// 首先尝试寻找特定文件
 	// 例如tellme -r vim, 则尝试在default(shell)目录下寻找vim.md
 	// 例如tellme -r aws ec2, 则尝试在aws目录下寻找ec2.md
@@ -68,12 +70,12 @@ func buildPath(path, keyword string) (stat int, filePath string) {
 	}
 
 	// 如果没找到特定文件,则开始查找目录
-	if path == defaultPath {
+	if path == DefaultPath {
 		// 例如tellme -r vim, 则尝试在根目录下寻找vim文件夹
-		filePath = home + "/" + keyword
+		filePath = Home + "/" + keyword
 	} else {
 		// 例如tellme -r aws ec2, 则尝试在根目录下寻找aws/ec2文件夹
-		filePath = home + "/" + path + "/" + keyword
+		filePath = Home + "/" + path + "/" + keyword
 	}
 
 	if IsDir(filePath) {
@@ -112,11 +114,11 @@ func confirmInput(prompt string) bool {
 
 func markdownParse(markdown string, n int) (string, error) {
 
-	if !strings.HasPrefix(markdown, delim) {
+	if !strings.HasPrefix(markdown, DELIM) {
 		return markdown, nil
 	}
 
-	parts := strings.Split(markdown, delim)
+	parts := strings.Split(markdown, DELIM)
 
 	if len(parts) < 4 {
 		return markdown, fmt.Errorf("failed to delimit")
@@ -129,8 +131,37 @@ func getTemplate() []byte {
 	return []byte("---\ntag: [\"example_tag\"]\n---\n# <Title>\n---\n## Example")
 }
 
-func colorPrint(color, text string) {
+func colorPrintln(color, text string) {
 	fmt.Printf("\x1b[%sm%s\x1b[0m\n", color, text)
+}
+
+func colorPrint(text string) {
+
+	for _, s := range COMMON {
+		n := strings.Index(text, s)
+		if n != -1 {
+			fmt.Printf("\x1b[%sm%s\x1b[0m", YELLOW, text[:n])
+			fmt.Printf("\x1b[%sm%s\x1b[0m", GREEN, text[n:])
+			fmt.Println()
+			return
+		}
+	}
+	colorPrintln(YELLOW, text)
+}
+
+func colorfulPrint(text string) {
+
+	for _, t := range strings.Split(text, "\n") {
+		// 排除以```开头的行
+		if strings.HasPrefix(t, "```") {
+			continue
+		}
+		if strings.HasPrefix(strings.TrimSpace(t), "#") || strings.HasPrefix(strings.TrimSpace(t), "//") {
+			colorPrintln(GREEN, t)
+			continue
+		}
+		colorPrint(t)
+	}
 }
 
 func columnPrint(list []string, operation func(string) string) {
