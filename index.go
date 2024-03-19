@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -75,10 +76,10 @@ func writeIndex(data map[string][]string) {
 	var err error
 	if !IsFile(IndexFile) { //如果文件不存在
 		file, err = os.Create(IndexFile) //创建文件
-		fmt.Printf("%s 文件不存在,创建文件并写入\n", IndexFile)
+		slog.Debug("文件不存在,创建文件并写入", "文件", IndexFile)
 	} else {
 		file, err = os.OpenFile(IndexFile, os.O_WRONLY|os.O_TRUNC, 0666) //打开文件
-		fmt.Printf("%s 文件存在,写入文件\n", IndexFile)
+		slog.Debug("文件存在,写入文件\n", "文件", IndexFile)
 	}
 	if err != nil {
 		panic(err)
@@ -269,7 +270,7 @@ func getFileTags(filePath string) (tags []string, err error) {
 	if err = yaml.Unmarshal([]byte(text), &tag); err != nil {
 		return
 	}
-	fmt.Println(tag.Tags)
+	slog.Debug("获取到文件tag", "文件", filePath, "tags", tag.Tags)
 	tags = tag.Tags
 	return
 

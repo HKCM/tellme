@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 )
@@ -60,28 +61,33 @@ func buildPath(path, keyword string) (stat int, filePath string) {
 	// 例如tellme -r aws ec2, 则尝试在aws目录下寻找ec2.md
 	// 例如tellme -r aws ec2 open, 则尝试在aws/ec2目录下寻找open.md
 	if IsFile(filePath) {
+		slog.Debug("找到文件了", "file", filePath)
 		return IsAFile, filePath
 	}
 
 	// 在文件没找到的情况下path中包含"/" 说明有三个参数,属于精确查找
 	// 例如tellme -r aws ec2 open
 	if strings.Contains(path, "/") {
+		slog.Debug("精确查找没有找到文件", "file", filePath)
 		return IsNoFile, filePath
 	}
 
-	// 如果没找到特定文件,则开始查找目录
-	if path == DefaultPath {
-		// 例如tellme -r vim, 则尝试在根目录下寻找vim文件夹
-		filePath = Home + "/" + keyword
-	} else {
-		// 例如tellme -r aws ec2, 则尝试在根目录下寻找aws/ec2文件夹
-		filePath = Home + "/" + path + "/" + keyword
-	}
+	// // 如果没找到特定文件,则开始查找目录
+	// if path == DefaultPath {
+	// 	// 例如tellme -r vim, 则尝试在根目录下寻找vim文件夹
+	// 	filePath = Home + "/" + keyword
+	// } else {
+	// 	// 例如tellme -r aws ec2, 则尝试在根目录下寻找aws/ec2文件夹
+	// 	filePath = Home + "/" + path + "/" + keyword
+	// }
+	filePath = Home + "/" + path + "/" + keyword
+	slog.Debug("查找目录", "filepath", filePath)
 
 	if IsDir(filePath) {
 		return IsADir, filePath
 	}
 
+	slog.Debug("查找目录", "filepath", filePath)
 	return IsNoFile, ""
 
 }

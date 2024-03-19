@@ -92,7 +92,7 @@ func parser(i input) (p Parser, err error) {
 	case 1:
 		p.Path = DefaultPath
 		p.Keyword = i.args[0]
-	case 2:
+	default:
 		p.Path = strings.Join(i.args[:na-1], "/")
 		p.Keyword = i.args[na-1]
 	}

@@ -28,12 +28,12 @@ const (
 
 func cmdShow(p Parser) {
 
+	slog.Debug("即将检查", "path", p.Path, "keyword", p.Keyword)
 	stat, filePath := buildPath(p.Path, p.Keyword)
-	slog.Debug("即将检查", filePath)
+	slog.Debug("即将检查", "filepath", filePath)
 	switch stat {
 	case IsAFile:
 		cmdShowNote(filePath)
-		fmt.Println("for more detail:", filePath)
 	case IsADir:
 		slog.Debug("cmdShow 将显示目录下的文件")
 		cmdShowFiles(filePath)
@@ -106,6 +106,7 @@ func cmdShowNote(path string) {
 	}
 
 	colorfulPrint(text)
+	fmt.Println("for more detail:", path)
 
 }
 
@@ -113,13 +114,13 @@ func cmdEditNote(p Parser) {
 	var cmd *exec.Cmd
 	// 构建文件路径
 	filePath := Home + "/" + p.Path + "/" + p.Keyword + ".md"
-	var originTags []string
+	var oldTags []string
 	var err error
 
 	// 如果文件已存在直接编辑
 	if IsFile(filePath) {
-		fmt.Printf("文件 %s 已存在\n", filePath)
-		originTags, err = getFileTags(filePath)
+		slog.Debug("文件已存在", "文件路径", filePath)
+		oldTags, err = getFileTags(filePath)
 		if err != nil {
 			panic(fmt.Errorf("删除文件 %s 失败,%v", filePath, err))
 		}
@@ -132,7 +133,7 @@ func cmdEditNote(p Parser) {
 		}
 		// 如果目录不存在则创建
 		if !e {
-			fmt.Println("目录:", dirPath, "不存在,创建中...")
+			slog.Debug("目录不存在", "目录", dirPath)
 			err = os.MkdirAll(dirPath, 0777)
 			if err != nil {
 				panic(err)
@@ -140,13 +141,13 @@ func cmdEditNote(p Parser) {
 		}
 		var lineCmd string
 		if IsFile(Template) {
-			fmt.Println("模版文件已存在,使用模版...")
+			slog.Debug("模版文件已存在,使用模版...")
 			lineCmd = fmt.Sprintf("autocmd VimEnter * nested silent! 0r %s", Template) // 使用template内容
 		} else {
-			fmt.Println("模版文件不存在,使用命令行参数添加模版...")
+			slog.Debug("模版文件不存在,使用命令行参数添加模版...")
 			lineCmd = "normal! i---\ntags: [\"example\"]\n---\n# <Title>\n---\n## Example"
 		}
-		fmt.Println(lineCmd)
+		slog.Debug(lineCmd)
 		cmd = exec.Command(EDITOR, "-c", lineCmd, filePath)
 	}
 
@@ -159,7 +160,7 @@ func cmdEditNote(p Parser) {
 
 	// 如果文件不存在,则表示文件没有创建,不用更新索引
 	if !IsFile(filePath) {
-		fmt.Println("如果文件不存在,则表示文件没有创建,不用更新索引")
+		slog.Debug("如果文件不存在,则表示文件没有创建,不用更新索引")
 		return
 	}
 
@@ -168,15 +169,15 @@ func cmdEditNote(p Parser) {
 		panic(err)
 	}
 
-	fmt.Printf("newTags:%v oldTags:%v \n", newTags, originTags)
-	if equal(newTags, originTags) {
-		fmt.Println("新旧文件Tag相同,不用更新索引")
+	slog.Debug("新旧Tags:", "newTags", newTags, "oldTags", oldTags)
+	if equal(newTags, oldTags) {
+		slog.Debug("新旧文件Tag相同,不用更新索引")
 		return
 	}
 
 	//TODO 更新索引
 	index := readIndex()
-	index = updateIndex(filePath, index, newTags, originTags)
+	index = updateIndex(filePath, index, newTags, oldTags)
 	writeIndex(index)
 
 }
