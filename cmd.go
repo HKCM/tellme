@@ -113,6 +113,7 @@ func cmdShowNote(path string) {
 func cmdEditNote(p Parser) {
 	var cmd *exec.Cmd
 	// 构建文件路径
+	dirPath := Home + "/" + p.Path + "/" + p.Keyword
 	filePath := Home + "/" + p.Path + "/" + p.Keyword + ".md"
 	var oldTags []string
 	var err error
@@ -122,19 +123,23 @@ func cmdEditNote(p Parser) {
 		slog.Debug("文件已存在", "文件路径", filePath)
 		oldTags, err = getFileTags(filePath)
 		if err != nil {
-			panic(fmt.Errorf("删除文件 %s 失败,%v", filePath, err))
+			panic(fmt.Errorf("获取Tag %s 失败,%v", filePath, err))
 		}
 		cmd = exec.Command(EDITOR, filePath)
 	} else {
-		dirPath := filepath.Dir(filePath)
-		e, err := pathExists(dirPath)
+		if IsDir(dirPath) {
+			fmt.Println("已存在同名", dirPath, "不存在,创建中...")
+			return
+		}
+		fileDirPath := filepath.Dir(filePath)
+		e, err := pathExists(fileDirPath)
 		if err != nil {
 			panic(err)
 		}
 		// 如果目录不存在则创建
 		if !e {
-			slog.Debug("目录不存在", "目录", dirPath)
-			err = os.MkdirAll(dirPath, 0777)
+			slog.Debug("目录不存在", "目录", fileDirPath)
+			err = os.MkdirAll(fileDirPath, 0777)
 			if err != nil {
 				panic(err)
 			}
