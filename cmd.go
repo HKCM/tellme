@@ -140,12 +140,12 @@ func cmdEditNote(p Parser) {
 		slog.Debug("文件已存在", "文件路径", filePath)
 		oldTags, err = getFileTags(filePath)
 		if err != nil {
-			panic(fmt.Errorf("获取Tag %s 失败,%v", filePath, err))
+			slog.Warn("获取Tag失败", "filePath", filePath, "err", err)
 		}
 		cmd = exec.Command(EDITOR, filePath)
 	} else {
 		if IsDir(dirPath) {
-			fmt.Println("已存在同名", dirPath, "不存在,创建中...")
+			slog.Error("已存在同名目录", "目录", dirPath)
 			return
 		}
 		fileDirPath := filepath.Dir(filePath)
@@ -188,7 +188,7 @@ func cmdEditNote(p Parser) {
 
 	newTags, err := getFileTags(filePath)
 	if err != nil {
-		panic(err)
+		slog.Warn("新note获取Tag失败", "filePath", filePath, "err", err)
 	}
 
 	slog.Debug("新旧Tags:", "newTags", newTags, "oldTags", oldTags)
@@ -198,6 +198,7 @@ func cmdEditNote(p Parser) {
 	}
 
 	//TODO 更新索引
+	slog.Info("即将更新索引:", "newTags", newTags, "oldTags", oldTags)
 	index := readIndex()
 	index = updateIndex(filePath, index, newTags, oldTags)
 	writeIndex(index)
