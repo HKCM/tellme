@@ -54,11 +54,6 @@ func readIndex() (data map[string][]string) {
 	if err != nil {
 		panic(err)
 	}
-	file, err := os.OpenFile(IndexFile, os.O_WRONLY|os.O_TRUNC, 0666) //打开文件
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
 
 	// 定义一个 map 用于存储解析后的 JSON 数据
 
