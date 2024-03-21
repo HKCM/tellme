@@ -77,10 +77,10 @@ func cmdShowIndex(p Parser) {
 		columnPrint(keywordPaths, nil)
 		return
 	}
-	msg += fmt.Sprintf("和 %s", indexKeyword)
+	msg = fmt.Sprintf("索引中未发现关键词: %s", indexKeyword)
 
 	slog.Debug(msg)
-	fmt.Println(msg)
+	slog.Warn(msg)
 
 }
 
