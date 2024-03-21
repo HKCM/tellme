@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -23,6 +24,7 @@ type Parser struct {
 	Path    string
 	Confirm bool
 	Args    []string
+	ArgL    int
 }
 
 type input struct {
@@ -86,15 +88,17 @@ func parser(i input) (p Parser, err error) {
 	}
 	p.Args = i.args
 
-	na := len(i.args)
+	p.ArgL = len(i.args)
 
-	switch na {
+	switch p.ArgL {
+	case 0:
+		slog.Debug("No args")
 	case 1:
 		p.Path = DefaultPath
 		p.Keyword = i.args[0]
 	default:
-		p.Path = strings.Join(i.args[:na-1], "/")
-		p.Keyword = i.args[na-1]
+		p.Path = strings.Join(i.args[:p.ArgL-1], "/")
+		p.Keyword = i.args[p.ArgL-1]
 	}
 
 	return

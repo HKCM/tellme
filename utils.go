@@ -87,7 +87,11 @@ func buildPath(path, keyword string) (stat int, filePath string) {
 		return IsADir, filePath
 	}
 
-	slog.Debug("查找目录", "filepath", filePath)
+	filePath = Home + "/" + keyword
+	if IsDir(filePath) {
+		return IsADir, filePath
+	}
+
 	return IsNoFile, ""
 
 }

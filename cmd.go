@@ -30,7 +30,10 @@ func cmdShow(p Parser) {
 
 	slog.Debug("即将检查", "path", p.Path, "keyword", p.Keyword)
 	stat, filePath := buildPath(p.Path, p.Keyword)
-	slog.Debug("即将检查", "filepath", filePath)
+	// if stat == IsNoFile && p.ArgL ==1 {
+
+	// }
+	slog.Debug("即将进行分支判定", "filepath", filePath)
 	switch stat {
 	case IsAFile:
 		cmdShowNote(filePath)
@@ -38,35 +41,47 @@ func cmdShow(p Parser) {
 		slog.Debug("cmdShow 将显示目录下的文件")
 		cmdShowFiles(filePath)
 	case IsNoFile:
-		slog.Debug("cmdShow 将显示index文件")
-		cmdShowIndex(p.Path, p.Keyword)
+		slog.Debug("既不是文件也不是目录,将显示index文件")
+		cmdShowIndex(p)
 	}
 
 }
 
-func cmdShowIndex(path, keyword string) {
-	indexKeyword := path + "/" + keyword
-	find, keywordPaths := checkIndex(indexKeyword) // 如果没有相关文件和目录 则进行关键词检索
+func cmdShowIndex(p Parser) {
+
+	var msg string
+	indexKeyword := p.Path + "/" + p.Keyword
+
+	slog.Debug("检查index.json文件", "indexKeyword", indexKeyword)
+
+	index := readIndex()
+	keywordPaths, find := index[indexKeyword]
+	//find, keywordPaths := checkIndex(indexKeyword) // 如果没有相关文件和目录 则进行关键词检索
+
+	if !find && p.ArgL == 1 {
+		msg = fmt.Sprintf("索引中未发现关键词: %s", indexKeyword)
+		slog.Debug("没有发现关键词,并且只有一个参数,将构建新的关键词", "关键词", indexKeyword, "新关键词", p.Keyword)
+		indexKeyword = p.Keyword
+		keywordPaths, find = index[indexKeyword]
+	}
 
 	if find {
+		slog.Debug("发现关键字", "关键词", indexKeyword)
 		if len(keywordPaths) == 1 { // 如果对应关键词下只有一条路径,则直接显示文件内容
-			realPath := Home + "/" + keywordPaths[0]
-			cmdShowNote(realPath)
+			filePath := Home + "/" + keywordPaths[0]
+			slog.Debug("关键字下只有一条记录,直接显示记录", "filePath", filePath)
+			cmdShowNote(filePath)
 			return
 		}
-		slog.Debug("发现关键字,属于以下目录:\n", "关键词", indexKeyword)
+		slog.Debug("关键字下存在多条记录,显示具体文件:\n", "关键词", indexKeyword)
 		columnPrint(keywordPaths, nil)
 		return
 	}
+	msg += fmt.Sprintf("和 %s", indexKeyword)
 
-	slog.Debug("没有发现关键字,什么都不显示", "关键词", indexKeyword)
-	cmdShowNothing(path, keyword)
+	slog.Debug(msg)
+	fmt.Println(msg)
 
-}
-
-func cmdShowNothing(path, keyword string) {
-	fmt.Printf("未发现 %s 目录...\n", getRelativePath(path))
-	fmt.Printf("搜索完毕,未发现任何 %s 相关记录...\n", keyword)
 }
 
 func getRelativePath(absPath string) string {
@@ -85,7 +100,9 @@ func cmdShowFiles(path string) error {
 
 		columnPrint(files, filepath.Base)
 
-		fmt.Printf("\n请使用类似命令获取详情: tellme %s %s\n", s, filepath.Base(files[0][:len(files[0])-3]))
+		key, _ := strings.CutSuffix(files[0], EXT)
+
+		fmt.Printf("\n请使用类似命令获取详情: tellme %s %s\n", s, filepath.Base(key))
 	} else {
 		fmt.Printf("目录 %s 下为空\n", path)
 	}
@@ -197,7 +214,7 @@ func cmdRemoveNote(p Parser) {
 
 	switch stat {
 	case IsAFile:
-		if p.Confirm || confirmInput(deleteFileMsg(p, filePath)) {
+		if p.Confirm || confirmInput(fmt.Sprintf("即将删除文件 %s ", filePath)) {
 			tags, err = getFileTags(filePath)
 			if err != nil {
 				panic(fmt.Errorf("获取文件Tag %s 失败,%v", filePath, err))
@@ -206,8 +223,8 @@ func cmdRemoveNote(p Parser) {
 			if err != nil {
 				panic(fmt.Errorf("删除文件 %s 失败,%v", filePath, err))
 			}
+			indexUpdate = true
 		}
-		indexUpdate = true
 
 	case IsADir: // TODO 目前删除目录有问题
 		files, err := filepath.Glob(filePath + "/*")

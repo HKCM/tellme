@@ -38,6 +38,7 @@ const (
 	ShortHome     = "~" + Root
 	ShortIndex    = ShortHome + "/index.json"
 	ShortTemplate = ShortHome + "/template"
+	EXT           = ".md"
 )
 
 func init() {
