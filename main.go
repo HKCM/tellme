@@ -78,7 +78,7 @@ func init() {
 		args:        flag.Args(),
 	}
 
-	slog.Debug("%+v\n", i)
+	slog.Debug("input", "i", i)
 }
 
 func main() {

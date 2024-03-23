@@ -66,7 +66,7 @@ func parser(i input) (p Parser, err error) {
 	}
 
 	if n > 1 {
-		err = fmt.Errorf("指定多个Flag", "flag", n)
+		err = fmt.Errorf("指定多个Flag")
 		fmt.Println(err)
 		return
 	}

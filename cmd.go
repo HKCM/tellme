@@ -59,7 +59,7 @@ func cmdShowIndex(p Parser) {
 	//find, keywordPaths := checkIndex(indexKeyword) // 如果没有相关文件和目录 则进行关键词检索
 
 	if !find && p.ArgL == 1 {
-		msg = fmt.Sprintf("索引中未发现关键词: %s", indexKeyword)
+		//msg = fmt.Sprintf("索引中未发现关键词: %s", indexKeyword)
 		slog.Debug("没有发现关键词,并且只有一个参数,将构建新的关键词", "关键词", indexKeyword, "新关键词", p.Keyword)
 		indexKeyword = p.Keyword
 		keywordPaths, find = index[indexKeyword]
@@ -84,9 +84,9 @@ func cmdShowIndex(p Parser) {
 
 }
 
-func getRelativePath(absPath string) string {
-	return strings.Replace(absPath, Home, ShortHome, 1)
-}
+// func getRelativePath(absPath string) string {
+// 	return strings.Replace(absPath, Home, ShortHome, 1)
+// }
 
 func cmdShowFiles(path string) error {
 	files, err := filepath.Glob(path + "/*")

@@ -13,25 +13,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func checkIndex(keyword string) (find bool, dirPaths []string) {
+// func checkIndex(keyword string) (find bool, dirPaths []string) {
 
-	jsonContent, err := os.ReadFile(IndexFile)
-	if err != nil {
-		fmt.Println("Error reading JSON file:", err)
-		return
-	}
-	// 定义一个 map 用于存储解析后的 JSON 数据
-	data := make(map[string][]string)
+// 	jsonContent, err := os.ReadFile(IndexFile)
+// 	if err != nil {
+// 		fmt.Println("Error reading JSON file:", err)
+// 		return
+// 	}
+// 	// 定义一个 map 用于存储解析后的 JSON 数据
+// 	data := make(map[string][]string)
 
-	// 将 JSON 字符串解析到 map 中
-	err = json.Unmarshal(jsonContent, &data)
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-	dirPaths, find = data[keyword]
-	return
-}
+// 	// 将 JSON 字符串解析到 map 中
+// 	err = json.Unmarshal(jsonContent, &data)
+// 	if err != nil {
+// 		fmt.Println("Error:", err)
+// 		return
+// 	}
+// 	dirPaths, find = data[keyword]
+// 	return
+// }
 
 func updateIndex(filePath string, index map[string][]string, newTags, oldTags []string) (newIndex map[string][]string) {
 
