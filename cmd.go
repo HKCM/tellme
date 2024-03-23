@@ -117,13 +117,15 @@ func cmdShowNote(path string) {
 		panic(fmt.Errorf("failed to read file: %s, %v", path, err))
 	}
 
-	text, err := markdownParse(string(markdown), 3)
+	text, part, err := markdownParse(string(markdown), 3)
 	if err != nil {
 		slog.Info("failed to parse markdown", "path", path, "err", err)
 	}
 
 	colorfulPrint(text)
-	fmt.Println("for more detail:", path)
+	if part >= 4 {
+		fmt.Println("Get more detail: ", path)
+	}
 
 }
 

@@ -21,7 +21,7 @@ const (
 	BLUE   = "34"
 )
 
-var COMMON = []string{"#", "//"}
+var COMMON = []string{"#", "//", "-- "}
 
 func pathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
@@ -122,19 +122,19 @@ func confirmInput(prompt string) bool {
 	}
 }
 
-func markdownParse(markdown string, n int) (string, error) {
+func markdownParse(markdown string, n int) (string, int, error) {
 
 	if !strings.HasPrefix(markdown, DELIM) {
-		return markdown, nil
+		return markdown, 0, nil
 	}
 
 	parts := strings.Split(markdown, DELIM)
 
 	if len(parts) < 4 {
-		return markdown, fmt.Errorf("failed to delimit")
+		return markdown, 0, fmt.Errorf("failed to delimit")
 	}
 
-	return parts[n], nil
+	return parts[n], len(parts), nil
 }
 
 func getTemplate() []byte {

@@ -252,7 +252,7 @@ func getFileTags(filePath string) (tags []string, err error) {
 		return
 	}
 
-	text, err := markdownParse(string(markdown), 1) // 获取tag
+	text, _, err := markdownParse(string(markdown), 1) // 获取tag
 	if err != nil {
 		err = fmt.Errorf("failed to parse markdown: %s, %v, got the hole file", filePath, err)
 		return
