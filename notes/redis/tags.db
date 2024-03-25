@@ -1,0 +1,6 @@
+getkey,redis,,key.md
+缓存击穿,redis,,缓存击穿.md
+缓存污染,redis,,缓存污染.md
+缓存淘汰策略,redis,,缓存淘汰策略.md
+缓存穿透,redis,,缓存穿透.md
+缓存雪崩,redis,,缓存雪崩.md

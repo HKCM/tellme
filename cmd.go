@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -26,10 +28,17 @@ const (
 	ShowNothing
 )
 
+type TagFile struct {
+	tag       string
+	folder    string
+	subfolder string
+	filename  string
+}
+
 func cmdShow(p Parser) {
 
-	slog.Debug("即将检查", "path", p.Path, "keyword", p.Keyword)
-	stat, filePath := buildPath(p.Path, p.Keyword)
+	slog.Debug("即将检查", "path", p.Path, "tag", p.Tag)
+	stat, filePath := buildPath(p.Path, p.Tag)
 	// if stat == IsNoFile && p.ArgL ==1 {
 
 	// }
@@ -38,55 +47,72 @@ func cmdShow(p Parser) {
 	case IsAFile:
 		cmdShowNote(filePath)
 	case IsADir:
-		slog.Debug("cmdShow 将显示目录下的文件")
-		cmdShowFiles(filePath)
+		if p.ShowTags {
+			slog.Debug("cmdShow 将显示目录下的Tags")
+			cmdShowDirTags(filePath)
+		} else {
+			slog.Debug("cmdShow 将显示目录下的文件")
+			cmdShowFiles(filePath)
+		}
+
 	case IsNoFile:
-		slog.Debug("既不是文件也不是目录,将显示index文件")
-		cmdShowIndex(p)
+		slog.Debug("既不是文件也不是目录,将显示tags文件")
+		cmdShowTag(p)
 	}
 
 }
 
-func cmdShowIndex(p Parser) {
+func cmdShowTag(p Parser) {
 
-	var msg string
-	indexKeyword := p.Path + "/" + p.Keyword
+	tagFiles := getTagsFromDir(Home + "/" + p.Path)
 
-	slog.Debug("检查index.json文件", "indexKeyword", indexKeyword)
+	var filename []string
 
-	index := readIndex()
-	keywordPaths, find := index[indexKeyword]
-	//find, keywordPaths := checkIndex(indexKeyword) // 如果没有相关文件和目录 则进行关键词检索
-
-	if !find && p.ArgL == 1 {
-		//msg = fmt.Sprintf("索引中未发现关键词: %s", indexKeyword)
-		slog.Debug("没有发现关键词,并且只有一个参数,将构建新的关键词", "关键词", indexKeyword, "新关键词", p.Keyword)
-		indexKeyword = p.Keyword
-		keywordPaths, find = index[indexKeyword]
+	for _, tf := range tagFiles {
+		if tf.tag == p.Tag {
+			filename = append(filename, tf.filename)
+		}
 	}
 
-	if find {
-		slog.Debug("发现关键字", "关键词", indexKeyword)
-		if len(keywordPaths) == 1 { // 如果对应关键词下只有一条路径,则直接显示文件内容
-			filePath := Home + "/" + keywordPaths[0]
-			slog.Debug("关键字下只有一条记录,直接显示记录", "filePath", filePath)
-			cmdShowNote(filePath)
-			return
-		}
-		slog.Debug("关键字下存在多条记录,显示具体文件:\n", "关键词", indexKeyword)
-		columnPrint(keywordPaths, nil)
+	if len(filename) == 0 {
+		msg := fmt.Sprintf("索引中未发现关键词: %s", p.Tag)
+		slog.Warn(msg)
 		return
 	}
-	msg = fmt.Sprintf("索引中未发现关键词: %s", indexKeyword)
 
-	slog.Debug(msg)
-	slog.Warn(msg)
+	if len(filename) == 1 {
+		cmdShowNote(Home + "/" + tagFiles[0].folder + "/" + tagFiles[0].subfolder + "/" + tagFiles[0].filename)
+		return
+	}
 
+	if len(filename) > 1 {
+		columnPrint(filename, nil)
+		return
+	}
 }
 
-// func getRelativePath(absPath string) string {
-// 	return strings.Replace(absPath, Home, ShortHome, 1)
-// }
+func cmdShowDirTags(path string) error {
+	tagFiles := getTagsFromDir(path)
+
+	d := getDirStruct(path)
+
+	if len(tagFiles) == 0 {
+		slog.Error("There are no db file")
+		return nil
+	}
+
+	var tags []string
+
+	for _, tf := range tagFiles {
+		tags = append(tags, tf.tag)
+	}
+	fmt.Printf("存在以下Tags:\n")
+	columnPrint(tags, nil)
+
+	fmt.Printf("\n请使用类似命令获取详情: tellme %s %s\n", d.folder, tags[0])
+
+	return nil
+}
 
 func cmdShowFiles(path string) error {
 	files, err := filepath.Glob(path + "/*")
@@ -132,18 +158,15 @@ func cmdShowNote(path string) {
 func cmdEditNote(p Parser) {
 	var cmd *exec.Cmd
 	// 构建文件路径
-	dirPath := Home + "/" + p.Path + "/" + p.Keyword
-	filePath := Home + "/" + p.Path + "/" + p.Keyword + ".md"
+	dirPath := Home + "/" + p.Path + "/" + p.Tag
+	filePath := Home + "/" + p.Path + "/" + p.Tag + ".md"
 	var oldTags []string
 	var err error
 
 	// 如果文件已存在直接编辑
 	if IsFile(filePath) {
 		slog.Debug("文件已存在", "文件路径", filePath)
-		oldTags, err = getFileTags(filePath)
-		if err != nil {
-			slog.Warn("获取Tag失败", "filePath", filePath, "err", err)
-		}
+		oldTags = getTagsByNote(filePath)
 		cmd = exec.Command(EDITOR, filePath)
 	} else {
 		if IsDir(dirPath) {
@@ -188,7 +211,7 @@ func cmdEditNote(p Parser) {
 		return
 	}
 
-	newTags, err := getFileTags(filePath)
+	newTags, err := getTagsFromFile(filePath)
 	if err != nil {
 		slog.Warn("新note获取Tag失败", "filePath", filePath, "err", err)
 	}
@@ -200,36 +223,93 @@ func cmdEditNote(p Parser) {
 	}
 
 	//TODO 更新索引
-	slog.Info("即将更新索引:", "newTags", newTags, "oldTags", oldTags)
-	index := readIndex()
-	index = updateIndex(filePath, index, newTags, oldTags)
-	writeIndex(index)
+	f := getFileStruct(filePath)
+	updateDirTags(Home + "/" + f.folder)
+}
 
+func getTagsFromDir(dirPath string) (tagFiles []TagFile) {
+	// 获取文件内容
+	d := getDirStruct(dirPath)
+	fdb, err := os.Open(Home + "/" + d.folder + DBFILE)
+
+	if err != nil {
+		panic(err)
+	}
+
+	r := csv.NewReader(fdb)
+	for {
+
+		record, err := r.Read()
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			panic(err)
+		}
+
+		if d.subfolder != "" {
+			if d.subfolder == record[2] {
+				tagFiles = append(tagFiles, TagFile{tag: record[0], folder: record[1], subfolder: record[2], filename: record[3]})
+			}
+		} else {
+			tagFiles = append(tagFiles, TagFile{tag: record[0], folder: record[1], subfolder: record[2], filename: record[3]})
+		}
+
+	}
+
+	return
+}
+
+func getTagsByNote(filePath string) (tags []string) {
+	// 获取文件内容
+	f := getFileStruct(filePath)
+	fdb, err := os.Open(Home + "/" + f.folder + DBFILE)
+
+	if err != nil {
+		panic(err)
+	}
+
+	r := csv.NewReader(fdb)
+	for {
+
+		record, err := r.Read()
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			panic(err)
+		}
+
+		if record[3] == filepath.Base(filePath) {
+			tags = append(tags, record[0])
+		}
+	}
+
+	return
 }
 
 // 删除必须要指定note的名字
 func cmdRemoveNote(p Parser) {
 
-	indexUpdate := false
-	stat, filePath := buildPath(p.Path, p.Keyword)
-	var tags []string
+	stat, filePath := buildPath(p.Path, p.Tag)
 	var err error
 
 	switch stat {
 	case IsAFile:
 		if p.Confirm || confirmInput(fmt.Sprintf("即将删除文件 %s ", filePath)) {
-			tags, err = getFileTags(filePath)
-			if err != nil {
-				panic(fmt.Errorf("获取文件Tag %s 失败,%v", filePath, err))
-			}
 			err = os.Remove(filePath)
 			if err != nil {
 				panic(fmt.Errorf("删除文件 %s 失败,%v", filePath, err))
 			}
-			indexUpdate = true
+			f := getFileStruct(filePath)
+			updateDirTags(Home + "/" + f.folder)
 		}
 
-	case IsADir: // TODO 目前删除目录有问题
+	case IsADir:
 		files, err := filepath.Glob(filePath + "/*")
 		if err != nil {
 			panic(err)
@@ -241,38 +321,36 @@ func cmdRemoveNote(p Parser) {
 			}
 		}
 		if confirmInput(fmt.Sprintf("即将删除 %s 目录操作", filePath)) {
-			updateIndexByRemoveDir(filePath)
 			err = os.RemoveAll(filePath)
 			if err != nil {
 				panic(err)
 			}
+			d := getDirStruct(filePath)
+			if d.subfolder != "" {
+				updateDirTags(Home + "/" + d.folder)
+			}
 		}
-		indexUpdate = true
 	case IsNoFile:
 		fmt.Printf("没有发现相关文件或目录")
 	default:
 		panic(fmt.Errorf("未知状态"))
 	}
 
-	if indexUpdate {
-		//TODO 更新索引
-		index := readIndex()
-		data := updateIndex(filePath, index, []string{}, tags)
-		writeIndex(data)
-	}
-
 }
 
-// 创建template文件
 func cmdInit(p Parser) {
-	if !IsFile(Template) || p.Confirm || confirmInput(fmt.Sprintf("模版文件 %s 已存在, 确认使用初始化覆盖?", Template)) {
+	// 创建template文件
+	createTemplate(p.Confirm)
+}
+
+func createTemplate(confirmed bool) {
+	if !IsFile(Template) || confirmed || confirmInput(fmt.Sprintf("模版文件 %s 已存在, 确认使用初始化覆盖?", Template)) {
 		err := os.WriteFile(Template, getTemplate(), 0666) //写入文件(字节数组)
 		if err != nil {
 			panic(err)
 		}
 		return
 	}
-
 }
 
 func cmdShowHelp(p Parser) {
@@ -280,7 +358,30 @@ func cmdShowHelp(p Parser) {
 	os.Exit(1)
 }
 
-func cmdIndexUpdate(p Parser) {
-	updateAllIndex()
+func cmdTagsUpdate(p Parser) {
+
+	dirPath := Home + "/"
+
+	if !IsDir(dirPath) {
+		slog.Error("未发现待更新的目录", "目录", dirPath)
+		return
+	}
+	slog.Debug("即将更新", "目录", dirPath)
+	if strings.ToLower(p.UpdateTarget) == "all" {
+		fs, err := os.ReadDir(dirPath)
+		if err != nil {
+			panic(err)
+		}
+		for _, f := range fs {
+			if f.IsDir() {
+				updateDirTags(Home + "/" + f.Name())
+			}
+		}
+	}
+
+	if strings.ToLower(p.UpdateTarget) != "all" {
+		dirPath = Home + "/" + p.UpdateTarget
+		updateDirTags(dirPath)
+	}
 
 }

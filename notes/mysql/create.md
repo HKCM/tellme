@@ -1,5 +1,5 @@
 ---
-tags: ["create_table","create_databse","create_index"]
+tags: ["create_table","create_database","create_index"]
 ---
 # <Title>
 ---

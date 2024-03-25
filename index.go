@@ -1,8 +1,7 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
+	"encoding/csv"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,128 +12,93 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// func checkIndex(keyword string) (find bool, dirPaths []string) {
-
-// 	jsonContent, err := os.ReadFile(IndexFile)
-// 	if err != nil {
-// 		fmt.Println("Error reading JSON file:", err)
-// 		return
-// 	}
-// 	// 定义一个 map 用于存储解析后的 JSON 数据
-// 	data := make(map[string][]string)
-
-// 	// 将 JSON 字符串解析到 map 中
-// 	err = json.Unmarshal(jsonContent, &data)
-// 	if err != nil {
-// 		fmt.Println("Error:", err)
-// 		return
-// 	}
-// 	dirPaths, find = data[keyword]
-// 	return
-// }
-
-func updateIndex(filePath string, index map[string][]string, newTags, oldTags []string) (newIndex map[string][]string) {
-
-	partFilePath, _ := strings.CutPrefix(filePath, Home+"/")
-
-	index = deleteIndex(index, oldTags, partFilePath)
-	index = addIndex(index, newTags, partFilePath)
-
-	return index
+type TagStruct struct {
+	Tag  string
+	file FileS
 }
 
-func readIndex() (data map[string][]string) {
-	var err error
-	var jsonContent []byte
-	if !IsFile(IndexFile) { //如果文件不存在
-		return
-	}
-
-	jsonContent, err = os.ReadFile(IndexFile)
-	if err != nil {
-		panic(err)
-	}
-
-	// 定义一个 map 用于存储解析后的 JSON 数据
-
-	// 将 JSON 字符串解析到 map 中
-	err = json.Unmarshal(jsonContent, &data)
-	if err != nil {
-		panic(err)
-	}
-
-	return
+type FileS struct {
+	folder    string
+	subfolder string
+	filename  string
 }
 
-func writeIndex(data map[string][]string) {
-	var file *os.File
-	var err error
-	if !IsFile(IndexFile) { //如果文件不存在
-		file, err = os.Create(IndexFile) //创建文件
-		slog.Debug("文件不存在,创建文件并写入", "文件", IndexFile)
-	} else {
-		file, err = os.OpenFile(IndexFile, os.O_WRONLY|os.O_TRUNC, 0666) //打开文件
-		slog.Debug("文件存在,写入文件\n", "文件", IndexFile)
-	}
-	if err != nil {
-		panic(err)
-	}
+func updateDirTags(dirPath string) (err error) {
 
-	content, err := json.Marshal(data)
-	if err != nil {
-		panic(fmt.Errorf("将map转化为content出错 %v", err))
-	}
-	writer := bufio.NewWriter(file)
-
-	_, err = writer.Write(content)
-	if err != nil {
-		panic(fmt.Errorf("index 写入文件出错 %v", err))
-	}
-	writer.Flush()
-}
-
-func updateAllIndex() (err error) {
-	// 获取新的文件内容
-	var files []string
-	index := make(map[string][]string)
-	err = filepath.Walk(Home+"/", func(path string, info os.FileInfo, err error) error {
+	d := getFileStruct(dirPath)
+	keywords := make([]TagStruct, 0, 10)
+	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if !info.IsDir() && filepath.Ext(path) == ".md" {
-			files = append(files, path)
-			tags, err := getFileTags(path)
+			slog.Debug("检查文件", "file", path)
+			tags, err := getTagsFromFile(path)
+			f := getFileStruct(path)
 			if err != nil {
 				fmt.Println(err)
 			}
-
-			index = updateIndex(path, index, tags, []string{})
-
+			for _, t := range tags {
+				r := TagStruct{
+					Tag:  t,
+					file: f,
+				}
+				keywords = append(keywords, r)
+			}
 		}
 		return err
 	})
 
-	writeIndex(index)
-	return
+	writeTags(Home+"/"+d.folder+DBFILE, keywords)
+
+	return nil
 }
 
-func updateIndexByRemoveDir(dirPath string) (err error) {
+func writeTags(s string, keywords []TagStruct) {
 
-	index := readIndex()
-	if index == nil {
-		index = make(map[string][]string)
+	var f *os.File
+	var err error
+	// if IsFile(s) {
+	// 	f, err = os.OpenFile(s, os.O_APPEND|os.O_WRONLY, 0644)
+	// } else {
+	// 	f, err = os.Create(s)
+	// }
+	f, err = os.Create(s)
+	if err != nil {
+		panic(err)
 	}
+	defer f.Close()
 
-	err = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		if !info.IsDir() && filepath.Ext(path) == ".md" {
-			oldTags, err := getFileTags(path)
-			if err != nil {
-				fmt.Println(err)
-			}
-			index = updateIndex(path, index, []string{}, oldTags)
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	for _, k := range keywords {
+		err = w.Write([]string{k.Tag, k.file.folder, k.file.subfolder, k.file.filename}) // calls Flush internally
+		if err != nil {
+			panic(err)
 		}
-		return err
-	})
+	}
+}
 
-	writeIndex(index)
-	return
+func getDirStruct(path string) FileS {
+	p, _ := strings.CutPrefix(path, Home+"/")
+	s := strings.Split(p, "/")
+	n := len(s)
+	var f FileS
+	f.folder = s[0]
+	if n == 2 {
+		f.subfolder = s[1]
+	}
+	return f
+}
+
+func getFileStruct(path string) FileS {
+	p, _ := strings.CutPrefix(path, Home+"/")
+	s := strings.Split(p, "/")
+	n := len(s)
+	var f FileS
+	f.folder = s[0]
+	f.filename = s[n-1]
+	if n == 3 {
+		f.subfolder = s[1]
+	}
+	return f
 }
 
 func addIndex(index map[string][]string, tags []string, path string) map[string][]string {
@@ -178,73 +142,7 @@ func addIndex(index map[string][]string, tags []string, path string) map[string]
 
 }
 
-func deleteIndex(index map[string][]string, tags []string, path string) map[string][]string {
-	l := strings.LastIndex(path, "/")
-	partDir := path[:l]
-
-	for _, k := range tags {
-		// 关键词移除
-		{
-			d, ok := index[k]
-			if ok {
-				if len(d) == 1 { // 如果有且只有一个关键词 则直接删除
-					delete(index, k)
-				} else {
-					var arr []string
-					for _, i := range d {
-						if i != path {
-							arr = append(arr, i)
-						}
-					}
-					index[k] = arr
-				}
-			}
-		}
-
-		// 移除目录关键词
-		{
-			partPathKeyword := partDir + "/" + k
-			d, ok := index[partPathKeyword]
-			if ok {
-				if len(d) == 1 {
-					delete(index, partPathKeyword)
-				} else {
-					var arr []string
-					for _, i := range d {
-						if i != path {
-							arr = append(arr, i)
-						}
-					}
-					index[partPathKeyword] = arr
-				}
-			}
-		}
-
-		// 移除目录+关键词
-		{
-			d, ok := index[partDir]
-			if ok {
-				if len(d) == 1 {
-					delete(index, partDir)
-				} else {
-					var arr []string
-					for _, i := range d {
-						if i != k {
-							arr = append(arr, i)
-						}
-					}
-					index[partDir] = arr
-				}
-			}
-		}
-
-	}
-
-	return index
-
-}
-
-func getFileTags(filePath string) (tags []string, err error) {
+func getTagsFromFile(filePath string) (tags []string, err error) {
 	// 获取文件内容
 	markdown, err := os.ReadFile(filePath)
 	if err != nil {

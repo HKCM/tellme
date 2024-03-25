@@ -12,29 +12,33 @@ type Model int
 const (
 	ModelHelp Model = iota
 	ModelInit
-	ModelIndex
+	ModelUpdateKeyword
 	ModelEdit
 	ModelRemove
 	ModelShow
 )
 
 type Parser struct {
-	Model   Model
-	Keyword string
-	Path    string
-	Confirm bool
-	Args    []string
-	ArgL    int
+	Model        Model
+	Tag          string
+	Path         string
+	Confirm      bool
+	ShowTags     bool
+	UpdateTarget string
+	Args         []string
+	ArgL         int
 }
 
 type input struct {
-	helpModel   bool
-	initModel   bool
-	indexModel  bool
-	editModel   bool
-	removeModel bool
-	confirm     bool
-	args        []string
+	helpModel        bool
+	showKeywordModel bool
+	initModel        bool
+	keywordModel     bool
+	editModel        bool
+	removeModel      bool
+	confirm          bool
+	tagTarget        string
+	args             []string
 }
 
 func parser(i input) (p Parser, err error) {
@@ -53,7 +57,7 @@ func parser(i input) (p Parser, err error) {
 	models := []bool{
 		i.helpModel,
 		i.initModel,
-		i.indexModel,
+		i.keywordModel,
 		i.editModel,
 		i.removeModel,
 	}
@@ -77,15 +81,18 @@ func parser(i input) (p Parser, err error) {
 		p.Model = ModelHelp
 	case i.initModel:
 		p.Model = ModelInit
-	case i.indexModel:
-		p.Model = ModelIndex
+	case i.keywordModel:
+		p.Model = ModelUpdateKeyword
 	case i.editModel:
 		p.Model = ModelEdit
 	case i.removeModel:
 		p.Model = ModelRemove
 	default:
 		p.Model = ModelShow
+		p.ShowTags = i.showKeywordModel
 	}
+
+	p.UpdateTarget = i.tagTarget
 	p.Args = i.args
 
 	p.ArgL = len(i.args)
@@ -95,10 +102,10 @@ func parser(i input) (p Parser, err error) {
 		slog.Debug("No args")
 	case 1:
 		p.Path = DefaultPath
-		p.Keyword = i.args[0]
+		p.Tag = i.args[0]
 	default:
 		p.Path = strings.Join(i.args[:p.ArgL-1], "/")
-		p.Keyword = i.args[p.ArgL-1]
+		p.Tag = i.args[p.ArgL-1]
 	}
 
 	return

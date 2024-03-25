@@ -11,6 +11,7 @@ import (
 const (
 	EDITOR = "vim"
 	DELIM  = "---\n"
+	DBFILE = "/tags.db"
 )
 
 var (
@@ -21,13 +22,15 @@ var (
 )
 
 var (
-	helpModel    bool
-	initModel    bool
-	indexModel   bool
-	debugModel   bool
-	editModel    bool
-	removeModel  bool
-	confirmModel bool
+	helpModel      bool
+	showTagModel   bool
+	initModel      bool
+	debugModel     bool
+	editModel      bool
+	removeModel    bool
+	confirmModel   bool
+	updateTagModel bool
+	tagsTarget     string
 )
 
 const Deep = 3
@@ -58,24 +61,28 @@ func init() {
 
 	flag.BoolVar(&helpModel, "h", false, "显示帮助")
 	flag.BoolVar(&initModel, "init", false, "创建模版")
-	flag.BoolVar(&indexModel, "make-index", false, "更新索引")
+	flag.BoolVar(&updateTagModel, "update-tag", false, "更新关键词")
+	flag.StringVar(&tagsTarget, "target", "all", "更新目标")
 	flag.BoolVar(&debugModel, "debug", false, "排错模式")
 	flag.BoolVar(&editModel, "e", false, "编辑或新建笔记")
 	flag.BoolVar(&removeModel, "r", false, "移除笔记")
 	flag.BoolVar(&confirmModel, "y", false, "确认操作")
+	flag.BoolVar(&showTagModel, "t", false, "显示Tags")
 	flag.Parse()
 	if debugModel {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
 	}
 
 	i = input{
-		helpModel:   helpModel,
-		initModel:   initModel,
-		indexModel:  indexModel,
-		editModel:   editModel,
-		removeModel: removeModel,
-		confirm:     confirmModel,
-		args:        flag.Args(),
+		helpModel:        helpModel,
+		showKeywordModel: showTagModel,
+		initModel:        initModel,
+		keywordModel:     updateTagModel,
+		editModel:        editModel,
+		removeModel:      removeModel,
+		confirm:          confirmModel,
+		tagTarget:        tagsTarget,
+		args:             flag.Args(),
 	}
 
 	slog.Debug("input", "i", i)
@@ -94,8 +101,8 @@ func main() {
 	switch p.Model {
 	case ModelInit:
 		runCmd = cmdInit
-	case ModelIndex:
-		runCmd = cmdIndexUpdate
+	case ModelUpdateKeyword:
+		runCmd = cmdTagsUpdate
 	case ModelHelp:
 		runCmd = cmdShowHelp
 	case ModelEdit:
