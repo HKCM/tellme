@@ -28,7 +28,7 @@ const (
 	ShowNothing
 )
 
-type TagFile struct {
+type TagData struct {
 	tag       string
 	folder    string
 	subfolder string
@@ -160,13 +160,22 @@ func cmdEditNote(p Parser) {
 	// 构建文件路径
 	dirPath := Home + "/" + p.Path + "/" + p.Tag
 	filePath := Home + "/" + p.Path + "/" + p.Tag + ".md"
+	var allTagDatas []TagData
 	var oldTags []string
+	// var oldTagDatas []TagData
 	var err error
 
 	// 如果文件已存在直接编辑
 	if IsFile(filePath) {
 		slog.Debug("文件已存在", "文件路径", filePath)
-		oldTags = getTagsByNote(filePath)
+
+		allTagDatas = getAllTagData(filePath)
+		for _, t := range allTagDatas {
+			if t.filename == p.Tag+".md" {
+				oldTags = append(oldTags, t.tag)
+				// oldTagDatas = append(oldTagDatas, t)
+			}
+		}
 		cmd = exec.Command(EDITOR, filePath)
 	} else {
 		if IsDir(dirPath) {
@@ -224,10 +233,48 @@ func cmdEditNote(p Parser) {
 
 	//TODO 更新索引
 	f := getFileStruct(filePath)
-	updateDirTags(Home + "/" + f.folder)
+
+	var newTagDatas []TagData
+	for _, tag := range newTags {
+		newTagDatas = append(newTagDatas, TagData{tag: tag, folder: f.folder, subfolder: f.subfolder, filename: f.filename})
+	}
+
+	if len(oldTags) == 0 {
+		appendTags(Home+"/"+f.folder+DBFILE, newTagDatas)
+	} else {
+		for _, t := range allTagDatas {
+			if t.filename != f.filename {
+				newTagDatas = append(newTagDatas, t)
+			}
+		}
+		writeTags(Home+"/"+f.folder+DBFILE, newTagDatas)
+	}
+
 }
 
-func getTagsFromDir(dirPath string) (tagFiles []TagFile) {
+func appendTags(dirPath string, ts []TagData) {
+	dirPath = dirPath + DBFILE
+	var f *os.File
+	var err error
+	if IsFile(dirPath) {
+		f, err = os.OpenFile(dirPath, os.O_APPEND|os.O_WRONLY, 0644)
+	} else {
+		f, err = os.Create(dirPath)
+	}
+	if err != nil {
+		panic(err)
+	}
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	for _, k := range ts {
+		err = w.Write([]string{k.tag, k.folder, k.subfolder, k.filename}) // calls Flush internally
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func getTagsFromDir(dirPath string) (tagFiles []TagData) {
 	// 获取文件内容
 	d := getDirStruct(dirPath)
 	fdb, err := os.Open(Home + "/" + d.folder + DBFILE)
@@ -251,10 +298,10 @@ func getTagsFromDir(dirPath string) (tagFiles []TagFile) {
 
 		if d.subfolder != "" {
 			if d.subfolder == record[2] {
-				tagFiles = append(tagFiles, TagFile{tag: record[0], folder: record[1], subfolder: record[2], filename: record[3]})
+				tagFiles = append(tagFiles, TagData{tag: record[0], folder: record[1], subfolder: record[2], filename: record[3]})
 			}
 		} else {
-			tagFiles = append(tagFiles, TagFile{tag: record[0], folder: record[1], subfolder: record[2], filename: record[3]})
+			tagFiles = append(tagFiles, TagData{tag: record[0], folder: record[1], subfolder: record[2], filename: record[3]})
 		}
 
 	}
@@ -262,33 +309,47 @@ func getTagsFromDir(dirPath string) (tagFiles []TagFile) {
 	return
 }
 
-func getTagsByNote(filePath string) (tags []string) {
-	// 获取文件内容
+// 从数据库中获取Note的Tags
+// func getTagsByNote(filePath string) (tags []string) {
+// 	// 获取文件内容
+// 	f := getFileStruct(filePath)
+// 	fdb, err := os.Open(Home + "/" + f.folder + DBFILE)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	r := csv.NewReader(fdb)
+// 	for {
+// 		record, err := r.Read()
+// 		if err == io.EOF {
+// 			break
+// 		}
+// 		if err != nil {
+// 			panic(err)
+// 		}
+// 		if record[3] == filepath.Base(filePath) {
+// 			tags = append(tags, record[0])
+// 		}
+// 	}
+// 	return
+// }
+
+func getAllTagData(filePath string) (tagDatas []TagData) {
 	f := getFileStruct(filePath)
 	fdb, err := os.Open(Home + "/" + f.folder + DBFILE)
-
 	if err != nil {
 		panic(err)
 	}
-
 	r := csv.NewReader(fdb)
 	for {
-
 		record, err := r.Read()
-
 		if err == io.EOF {
 			break
 		}
-
 		if err != nil {
 			panic(err)
 		}
-
-		if record[3] == filepath.Base(filePath) {
-			tags = append(tags, record[0])
-		}
+		tagDatas = append(tagDatas, TagData{tag: record[0], folder: record[1], subfolder: record[2], filename: record[3]})
 	}
-
 	return
 }
 
@@ -297,7 +358,6 @@ func cmdRemoveNote(p Parser) {
 
 	stat, filePath := buildPath(p.Path, p.Tag)
 	var err error
-
 	switch stat {
 	case IsAFile:
 		if p.Confirm || confirmInput(fmt.Sprintf("即将删除文件 %s ", filePath)) {
