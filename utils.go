@@ -175,7 +175,7 @@ func colorfulPrint(text string) {
 }
 
 func columnPrint(list []string, operation func(string) string) {
-	columnWidth := 20
+	columnWidth := 15
 	column := 5
 
 	// 每行打印四个文件名

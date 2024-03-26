@@ -109,7 +109,7 @@ func cmdShowDirTags(path string) error {
 	fmt.Printf("存在以下Tags:\n")
 	columnPrint(tags, nil)
 
-	fmt.Printf("\n请使用类似命令获取详情: tellme %s %s\n", d.folder, tags[0])
+	fmt.Printf("\n请使用类似命令获取详情: tellme %s %s\n\n", d.folder, tags[0])
 
 	return nil
 }
@@ -128,7 +128,7 @@ func cmdShowFiles(path string) error {
 
 		key, _ := strings.CutSuffix(files[0], EXT)
 
-		fmt.Printf("\n请使用类似命令获取详情: tellme %s %s\n", s, filepath.Base(key))
+		fmt.Printf("\n请使用类似命令获取详情: tellme %s %s\n\n", s, filepath.Base(key))
 	} else {
 		fmt.Printf("目录 %s 下为空\n", path)
 	}
@@ -252,14 +252,14 @@ func cmdEditNote(p Parser) {
 
 }
 
-func appendTags(dirPath string, ts []TagData) {
-	dirPath = dirPath + DBFILE
+func appendTags(dbPath string, ts []TagData) {
+
 	var f *os.File
 	var err error
-	if IsFile(dirPath) {
-		f, err = os.OpenFile(dirPath, os.O_APPEND|os.O_WRONLY, 0644)
+	if IsFile(dbPath) {
+		f, err = os.OpenFile(dbPath, os.O_APPEND|os.O_WRONLY, 0644)
 	} else {
-		f, err = os.Create(dirPath)
+		f, err = os.Create(dbPath)
 	}
 	if err != nil {
 		panic(err)
@@ -335,7 +335,12 @@ func getTagsFromDir(dirPath string) (tagFiles []TagData) {
 
 func getAllTagData(filePath string) (tagDatas []TagData) {
 	f := getFileStruct(filePath)
-	fdb, err := os.Open(Home + "/" + f.folder + DBFILE)
+	dbFile := Home + "/" + f.folder + DBFILE
+	if !IsFile(dbFile) {
+		slog.Debug("数据库文件不存在", "文件路径", dbFile)
+		return
+	}
+	fdb, err := os.Open(dbFile)
 	if err != nil {
 		panic(err)
 	}
@@ -366,7 +371,15 @@ func cmdRemoveNote(p Parser) {
 				panic(fmt.Errorf("删除文件 %s 失败,%v", filePath, err))
 			}
 			f := getFileStruct(filePath)
-			updateDirTags(Home + "/" + f.folder)
+			var newTagDatas []TagData
+			tagDatas := getAllTagData(Home + "/" + f.folder + DBFILE)
+			for _, t := range tagDatas {
+				if t.filename == f.filename && t.subfolder == f.subfolder {
+					continue
+				}
+				newTagDatas = append(newTagDatas, t)
+			}
+			writeTags(Home+"/"+f.folder+DBFILE, newTagDatas)
 		}
 
 	case IsADir:
@@ -387,7 +400,15 @@ func cmdRemoveNote(p Parser) {
 			}
 			d := getDirStruct(filePath)
 			if d.subfolder != "" {
-				updateDirTags(Home + "/" + d.folder)
+				var newTagDatas []TagData
+				tagDatas := getAllTagData(Home + "/" + d.folder + DBFILE)
+				for _, t := range tagDatas {
+					if t.subfolder == d.subfolder {
+						continue
+					}
+					newTagDatas = append(newTagDatas, t)
+				}
+				writeTags(Home+"/"+d.folder+DBFILE, newTagDatas)
 			}
 		}
 	case IsNoFile:
