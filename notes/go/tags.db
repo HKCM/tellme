@@ -1,3 +1,8 @@
 可变参数,go,,function.md
-timezone,go,,time.md
-时区,go,,time.md
+时区,go,,timezone.md
+时间格式化,go,,time.md
+时间加减,go,,time.md
+timeformat,go,,time.md
+遍历文件夹,go,,遍历文件.md
+文件夹遍历,go,,遍历文件.md
+文件遍历,go,,遍历文件.md
