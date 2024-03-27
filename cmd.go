@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -65,28 +66,35 @@ func cmdShow(p Parser) {
 func cmdShowTag(p Parser) {
 
 	tagFiles := getTagsFromDir(Home + "/" + p.Path)
+	slog.Debug("检查文件", "p.Path", p.Path)
+	slog.Debug("tags文件", "tagFiles", tagFiles)
 
-	var filename []string
+	var targets []TagData
 
 	for _, tf := range tagFiles {
 		if tf.tag == p.Tag {
-			filename = append(filename, tf.filename)
+			slog.Debug("获得相同tag", "tf.tag", tf.tag, "p.Tag", p.Tag)
+			targets = append(targets, tf)
+			slog.Debug("文件名filename", "tf.filename", tf.filename)
 		}
 	}
 
-	if len(filename) == 0 {
-		msg := fmt.Sprintf("索引中未发现关键词: %s", p.Tag)
-		slog.Warn(msg)
+	if len(targets) == 0 {
+		slog.Warn(fmt.Sprintf("索引中未发现关键词: %s", p.Tag))
 		return
 	}
 
-	if len(filename) == 1 {
-		cmdShowNote(Home + "/" + tagFiles[0].folder + "/" + tagFiles[0].subfolder + "/" + tagFiles[0].filename)
+	if len(targets) == 1 {
+		cmdShowNote(Home + "/" + targets[0].folder + "/" + targets[0].subfolder + "/" + targets[0].filename)
 		return
 	}
 
-	if len(filename) > 1 {
-		columnPrint(filename, nil)
+	if len(targets) > 1 {
+		s := []string{}
+		for _, t := range targets {
+			s = append(s, t.filename)
+		}
+		columnPrint(s, nil)
 		return
 	}
 }
@@ -107,6 +115,7 @@ func cmdShowDirTags(path string) error {
 		tags = append(tags, tf.tag)
 	}
 	fmt.Printf("存在以下Tags:\n")
+	sort.Strings(tags)
 	columnPrint(tags, nil)
 
 	fmt.Printf("\n请使用类似命令获取详情: tellme %s %s\n\n", d.folder, tags[0])
@@ -122,6 +131,7 @@ func cmdShowFiles(path string) error {
 	if len(files) > 0 {
 		part := path[len(Home)+1:] // 加1去除末尾的 “/”
 		s := strings.ReplaceAll(part, "/", " ")
+		sort.Strings(files)
 		fmt.Printf("%s 目录下存在以下文件(%d):\n", path, len(files))
 
 		columnPrint(files, filepath.Base)
@@ -149,7 +159,7 @@ func cmdShowNote(path string) {
 	}
 
 	colorfulPrint(text)
-	if part >= 4 {
+	if part > 4 {
 		fmt.Println("Get more detail: ", path)
 	}
 
