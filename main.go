@@ -68,6 +68,7 @@ func init() {
 	flag.BoolVar(&removeModel, "r", false, "移除笔记")
 	flag.BoolVar(&confirmModel, "y", false, "确认操作")
 	flag.BoolVar(&showTagModel, "t", false, "显示Tags")
+	flag.Usage = cmdShowHelp
 	flag.Parse()
 	if debugModel {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
@@ -103,12 +104,12 @@ func main() {
 		runCmd = cmdInit
 	case ModelUpdateKeyword:
 		runCmd = cmdTagsUpdate
-	case ModelHelp:
-		runCmd = cmdShowHelp
 	case ModelEdit:
 		runCmd = cmdEditNote
 	case ModelRemove:
 		runCmd = cmdRemoveNote
+	case ModelHelp:
+		cmdShowHelp()
 	default:
 		runCmd = cmdShow
 	}

@@ -434,9 +434,9 @@ func createTemplate(confirmed bool) {
 	}
 }
 
-func cmdShowHelp(p Parser) {
+func cmdShowHelp() {
 	fmt.Println(usage())
-	os.Exit(1)
+	os.Exit(0)
 }
 
 func cmdTagsUpdate(p Parser) {

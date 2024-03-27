@@ -9,5 +9,5 @@ ln -s $(pwd) $HOME/.tellme
 
 ```bash
 GOOS=darwin GOARCH=amd64 go build -o tellme .
-chmod +x tellme
+ln -si $(pwd)/tellme /opt/homebrew/bin/tellme
 ```
